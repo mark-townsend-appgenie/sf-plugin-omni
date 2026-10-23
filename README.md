@@ -12,22 +12,50 @@ This plugin exposes the AppGenie OmniStudio metadata formatter through the Sales
 - Node.js 22 or later, matching the current Salesforce CLI runtime line.
 - npm or Yarn to install dependencies.
 
-## Install for local development
+## Install from GitHub for evaluation
 
-From this package directory:
+The plugin is currently distributed as source from the GitHub repository; it has **not** been published to npm. You need Git access to the repository, Node.js 22 or later, npm, and the Salesforce CLI (`sf`). If the repository is private, GitHub must authenticate your account and grant you access before cloning.
+
+From a terminal, clone the repository and install its dependencies:
 
 ```bash
-npm install
+git clone https://github.com/mark-townsend-appgenie/sf-plugin-omni.git
+cd sf-plugin-omni
+npm ci
+npm test
+npm run manifest
+sf plugins link .
+```
+
+Confirm that Salesforce CLI can discover the command:
+
+```bash
+sf appgenie omni format --help
+sf appgenie omni format --list-types
+```
+
+`npm ci` uses the committed `package-lock.json` to install the locked dependency tree. If the lock file has not yet been committed to the repository, use `npm install` temporarily instead; commit the generated lock file before relying on clean external builds.
+
+### Uninstall the linked development plugin
+
+When you have finished evaluating it, run:
+
+```bash
+sf plugins unlink @appgenie/sf-plugin-omni
+```
+
+Unlinking removes the local plugin registration from Salesforce CLI; it does not delete the repository or its files.
+
+## Install for local development
+
+If you already have a checkout, run these commands from the repository directory:
+
+```bash
+npm ci
 npm test
 npm run manifest
 sf plugins link .
 sf appgenie omni format --help
-```
-
-To unlink it after testing:
-
-```bash
-sf plugins unlink @appgenie/sf-plugin-omni
 ```
 
 For a direct local run without linking:
@@ -36,7 +64,7 @@ For a direct local run without linking:
 npm run dev -- appgenie omni format --help
 ```
 
-The package is configured for the `@appgenie` npm scope, but it is not published by this project build. Publishing requires the AppGenie npm scope to be owned/configured and release approval.
+The package is configured for the `@appgenie` npm scope, but it is not published to npm. Until an approved package release is published, use the source-install instructions above rather than `sf plugins install @appgenie/sf-plugin-omni`.
 
 ## Command usage
 
