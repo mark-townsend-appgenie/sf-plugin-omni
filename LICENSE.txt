@@ -1,0 +1,5 @@
+Copyright (c) 2026 AppGenie. All rights reserved.
+
+This package is proprietary software. No permission is granted to copy, modify,
+distribute, sublicense, or use this software except as expressly authorised in
+writing by AppGenie.

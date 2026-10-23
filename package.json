@@ -1,0 +1,66 @@
+{
+  "name": "@appgenie/sf-plugin-omni",
+  "version": "0.1.0",
+  "description": "AppGenie Salesforce CLI utilities for safely formatting embedded JSON in OmniStudio metadata XML.",
+  "author": "AppGenie",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "main": "./src/commands/appgenie/omni/format.js",
+  "files": [
+    "bin/",
+    "src/",
+    "messages/",
+    "README.md",
+    "LICENSE.txt",
+    "CHANGELOG.md",
+    "oclif.manifest.json"
+  ],
+  "scripts": {
+    "test": "node test/run-tests.cjs",
+    "test:engine": "node test/run-tests.cjs",
+    "manifest": "oclif manifest",
+    "prepack": "npm run manifest",
+    "pack:check": "npm pack --dry-run",
+    "dev": "node ./bin/dev.js"
+  },
+  "dependencies": {
+    "@oclif/core": "^5.1.2",
+    "@salesforce/sf-plugins-core": "^13.0.7"
+  },
+  "oclif": {
+    "bin": "sf",
+    "commands": "./src/commands",
+    "topicSeparator": " ",
+    "flexibleTaxonomy": true,
+    "topics": {
+      "appgenie": {
+        "description": "AppGenie development utilities.",
+        "subtopics": {
+          "omni": {
+            "description": "Utilities for Salesforce OmniStudio metadata."
+          }
+        }
+      }
+    }
+  },
+  "keywords": [
+    "salesforce",
+    "salesforce-cli",
+    "sf-plugin",
+    "omnistudio",
+    "omniscript",
+    "integration-procedure",
+    "metadata-xml",
+    "formatter",
+    "appgenie"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "oclif": "^5.0.0"
+  }
+}
