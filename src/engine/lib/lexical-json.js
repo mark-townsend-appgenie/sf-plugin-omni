@@ -62,7 +62,7 @@ function stringTokenEnd(raw, start) {
   throw new Error(`Unterminated JSON string at position ${start}`);
 }
 
-function formatJsonLexically(raw, indent = INDENT) {
+function formatJsonLexically(raw, indent = INDENT, eol = '\n') {
   validateJson(raw);
 
   let output = '';
@@ -74,7 +74,7 @@ function formatJsonLexically(raw, indent = INDENT) {
   }
 
   function newline(depth) {
-    output += '\n' + indent.repeat(Math.max(0, depth));
+    output += eol + indent.repeat(Math.max(0, depth));
   }
 
   while (i < raw.length) {
