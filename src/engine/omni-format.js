@@ -11,7 +11,11 @@ const componentDir = path.join(__dirname, 'components');
 const components = fs.readdirSync(componentDir)
   .filter((name) => name.endsWith('.js'))
   .sort()
-  .map((name) => ({ file: name, discoverySuffixes: [], ...require(path.join(componentDir, name)) }));
+  .map((name) => ({ file: name, discoverySuffixes: [], optionalTargetTags: [], ...require(path.join(componentDir, name)) }));
+
+function isPassThrough(component) {
+  return component.targetTags.length === 0 && component.optionalTargetTags.length === 0;
+}
 
 function getComponent(xml) {
   const root = rootElementName(xml);
@@ -31,9 +35,21 @@ function formatXml(xml, options = {}) {
   // New line breaks follow the file's existing line ending so CRLF files stay CRLF.
   const eol = detectLineEnding(xml);
   const nodeFormatted = formatXmlNodes(xml, { indent, eol });
-  const formatted = expand === 'all'
-    ? formatXmlTargets(nodeFormatted, component.targetTags, (payload) => formatJsonLexically(payload, undefined, eol))
-    : nodeFormatted;
+  if (expand !== 'all') return { formatted: nodeFormatted, component, expand };
+
+  const formatJson = (payload) => formatJsonLexically(payload, undefined, eol);
+  // Required targets must hold valid JSON; invalid content stops the run. Check
+  // the original text first so reported line numbers match the file on disk.
+  formatXmlTargets(xml, component.targetTags, formatJson);
+  const strict = formatXmlTargets(nodeFormatted, component.targetTags, formatJson);
+  // Optional targets (sample/preview payloads) are expanded only when valid JSON.
+  const formatted = formatXmlTargets(strict, component.optionalTargetTags, (payload) => {
+    try {
+      return formatJson(payload);
+    } catch {
+      return payload;
+    }
+  });
   return { formatted, component, expand };
 }
 
@@ -50,9 +66,10 @@ function usage() {
 
 function listTypes() {
   for (const component of components) {
-    const targets = component.targetTags.length ? component.targetTags.join(', ') : '(pass-through; no approved targets)';
+    const targets = component.targetTags.length ? component.targetTags.join(', ') : '(none)';
+    const optional = component.optionalTargetTags.length ? component.optionalTargetTags.join(', ') : '(none)';
     const scan = component.discoverySuffixes.length ? component.discoverySuffixes.join(', ') : 'no (format by explicit file path)';
-    console.log(`${component.componentName}\n  roots: ${component.rootNames.join(', ')}\n  targets: ${targets}\n  folder scan: ${scan}\n  file: src/engine/components/${component.file}`);
+    console.log(`${component.componentName}${isPassThrough(component) ? ' (pass-through)' : ''}\n  roots: ${component.rootNames.join(', ')}\n  targets: ${targets}\n  optional targets (only if valid JSON): ${optional}\n  folder scan: ${scan}\n  file: src/engine/components/${component.file}`);
   }
 }
 
@@ -91,7 +108,7 @@ function main() {
       try {
         const { formatted, component } = formatXml(input, { expand, indent });
         process.stdout.write(formatted);
-        if (component.targetTags.length === 0) {
+        if (isPassThrough(component)) {
           console.error(`Note: ${component.componentName} is currently configured as pass-through.`);
         }
       } catch (error) {
@@ -128,7 +145,7 @@ function main() {
       throw error;
     }
     console.error(`Formatted ${path.basename(inputPath)} (${component.componentName})`);
-    if (component.targetTags.length === 0) {
+    if (isPassThrough(component)) {
       console.error('Note: this component is pass-through until JSON fields are explicitly approved.');
     }
   } catch (error) {
@@ -138,4 +155,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { formatXml, getComponent, components };
+module.exports = { formatXml, getComponent, components, isPassThrough };

@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { formatXml, components } = require('./omni-format');
+const { formatXml, components, isPassThrough } = require('./omni-format');
 
 // Directory scanning only covers types whose file suffix is unambiguous. Other
 // registered types are formatted when passed as an explicit file path.
@@ -65,7 +65,7 @@ function planFormatting(files, options = {}) {
       original,
       formatted,
       component: component.componentName,
-      passThrough: component.targetTags.length === 0,
+      passThrough: isPassThrough(component),
       changed: formatted !== original,
     };
   });

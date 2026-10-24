@@ -5,7 +5,7 @@ import { Args, Flags } from '@oclif/core';
 import { SfCommand } from '@salesforce/sf-plugins-core';
 
 const require = createRequire(import.meta.url);
-const { formatXml, components } = require('../../../engine/omni-format.js');
+const { formatXml, components, isPassThrough } = require('../../../engine/omni-format.js');
 const { DISCOVERY_SUFFIXES, discoverMetadataFiles, planFormatting, applyFormatting } = require('../../../engine/file-operations.js');
 
 function readStdin() {
@@ -79,13 +79,14 @@ Directory updates are not a single all-files transaction.`;
         component: component.componentName,
         roots: component.rootNames,
         targets: component.targetTags,
-        mode: component.targetTags.length > 0 ? 'format' : 'pass-through',
+        optionalTargets: component.optionalTargetTags,
+        mode: isPassThrough(component) ? 'pass-through' : 'format',
         folderScanSuffixes: component.discoverySuffixes,
         notes: component.formatNotes ?? '',
       }));
       if (!flags.json) {
         for (const item of types) {
-          this.log(`${item.component}\n  roots: ${item.roots.join(', ')}\n  targets: ${item.targets.length ? item.targets.join(', ') : '(none; pass-through)'}\n  folder scan: ${item.folderScanSuffixes.length ? item.folderScanSuffixes.join(', ') : 'no (format by explicit file path)'}\n  mode: ${item.mode}${item.notes ? `\n  notes: ${item.notes}` : ''}`);
+          this.log(`${item.component}\n  roots: ${item.roots.join(', ')}\n  targets: ${item.targets.length ? item.targets.join(', ') : '(none)'}\n  optional targets (only if valid JSON): ${item.optionalTargets.length ? item.optionalTargets.join(', ') : '(none)'}\n  folder scan: ${item.folderScanSuffixes.length ? item.folderScanSuffixes.join(', ') : 'no (format by explicit file path)'}\n  mode: ${item.mode}${item.notes ? `\n  notes: ${item.notes}` : ''}`);
         }
       }
       return { types };
@@ -98,10 +99,10 @@ Directory updates are not a single all-files transaction.`;
       const changed = formatted !== original;
       if (flags.check && changed) this.error('Formatting is required for stdin input; no output was written because --check was specified.');
       if (flags.json) {
-        return { input: 'stdin', formatted, component: component.componentName, changed, passThrough: component.targetTags.length === 0 };
+        return { input: 'stdin', formatted, component: component.componentName, changed, passThrough: isPassThrough(component) };
       }
       if (!flags.check) process.stdout.write(formatted);
-      return { input: 'stdin', component: component.componentName, changed, passThrough: component.targetTags.length === 0 };
+      return { input: 'stdin', component: component.componentName, changed, passThrough: isPassThrough(component) };
     }
 
     const inputPath = path.resolve(args.path);

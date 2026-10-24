@@ -50,7 +50,7 @@ assert.equal(formatXml(outOfScopeNodeOnly).formatted, outOfScopeNodeOnly, 'node-
 const cardXml = '<OmniUiCard><propertySetConfig>{&quot;a&quot;:1,&quot;b&quot;:2}</propertySetConfig><dataSourceConfig>{&quot;c&quot;:3,&quot;d&quot;:4}</dataSourceConfig></OmniUiCard>';
 const cardFormatted = formatXml(cardXml, { expand: 'all' }).formatted;
 assert.ok(cardFormatted.includes('<propertySetConfig>{\n  &quot;a&quot;: 1,\n  &quot;b&quot;: 2\n}</propertySetConfig>'));
-assert.ok(cardFormatted.includes('<dataSourceConfig>{&quot;c&quot;:3,&quot;d&quot;:4}</dataSourceConfig>'), 'non-allowlisted card fields remain unchanged');
+assert.ok(cardFormatted.includes('<dataSourceConfig>{\n  &quot;c&quot;: 3,\n  &quot;d&quot;: 4\n}</dataSourceConfig>'),'card dataSourceConfig is expanded (field reference: JSON data source bindings)');
 assert.ok(!components.find((c) => c.rootNames.includes('OmniUiCard')).targetTags.includes('elementTypeComponentMapping'), 'cards do not target elementTypeComponentMapping');
 
 // Salesforce-style 4-space file: already clean, so no changes and --check would pass.
@@ -90,9 +90,9 @@ assert.equal(formatXml(ipAll, { expand: 'all' }).formatted, ipAll, 'IP all mode 
 // Data Transform: XML layout only; JSON stays as-is in both modes.
 const dtXml = '<OmniDataTransform><name>DT</name><omniDataTransformItem><inputFieldName>A</inputFieldName><formulaExpression>IF(a &gt; 1, &quot;x&quot;, &quot;y&quot;)</formulaExpression></omniDataTransformItem><expectedInputJson>{&quot;a&quot;:1}</expectedInputJson></OmniDataTransform>';
 const dtAll = formatXml(dtXml, { expand: 'all' }).formatted;
-assert.equal(dtAll, formatXml(dtXml).formatted, 'Data Transform all mode equals node mode (no JSON targets)');
+assert.ok(dtAll.includes('<expectedInputJson>{\n  &quot;a&quot;: 1\n}</expectedInputJson>'),'Data Transform expectedInputJson expanded in all mode');
 assert.ok(dtAll.includes('\n    <omniDataTransformItem>\n        <inputFieldName>A</inputFieldName>'), 'Data Transform node layout');
-assert.ok(dtAll.includes('<expectedInputJson>{&quot;a&quot;:1}</expectedInputJson>'), 'Data Transform JSON untouched');
+assert.ok(formatXml(dtXml).formatted.includes('<expectedInputJson>{&quot;a&quot;:1}</expectedInputJson>'), 'Data Transform JSON untouched in node mode');
 assert.ok(dtAll.includes('IF(a &gt; 1, &quot;x&quot;, &quot;y&quot;)'), 'Data Transform formula text untouched');
 
 // Card full round trip in node mode.
@@ -153,7 +153,7 @@ try {
   const goodFile = path.join(scanDir, 'A.os-meta.xml');
   const badFile = path.join(tempRoot, 'Bad.os-meta.xml');
   fs.writeFileSync(badFile, '<OmniScript><propertySetConfig>{bad</propertySetConfig></OmniScript>');
-  assert.throws(() => planFormatting([goodFile, badFile], { expand: 'all' }), (error) => error.message.startsWith(`${badFile}: Invalid embedded JSON`));
+  assert.throws(() => planFormatting([goodFile, badFile], { expand: 'all' }), (error) => error.message.startsWith(`${badFile}: <propertySetConfig> at line 1: Invalid embedded JSON`));
   assert.equal(fs.readFileSync(goodFile, 'utf8'), '<OmniInteractionConfig><value>v</value></OmniInteractionConfig>', 'planning failure writes nothing');
   const brokenXml = path.join(tempRoot, 'Broken.oip-meta.xml');
   fs.writeFileSync(brokenXml, '<OmniIntegrationProcedure><a></b></OmniIntegrationProcedure>');
@@ -167,6 +167,8 @@ try {
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
+
+require('./field-reference-tests.cjs');
 
 // The core has no dependencies on the Salesforce CLI runtime; this suite runs offline.
 console.log('All formatter engine tests passed.');

@@ -1,11 +1,15 @@
 'use strict';
+// Field names follow the OmniDataTransform Metadata API field reference. The
+// JSON-bearing header fields are expectedInputJson, expectedOutputJson and
+// previewJsonData. omniDataTransformItem formula fields (formulaExpression,
+// formulaConverted) are formula text, not JSON, and are never touched.
 module.exports = {
   componentName: 'OmniDataTransform',
   rootNames: ['OmniDataTransform'],
   discoverySuffixes: ['.rpt-meta.xml'],
-  // The formatter's contract is intentionally limited to propertySetConfig
-  // and elementTypeComponentMapping. Data Mapper sample JSON fields are out of
-  // scope until a retrieved org fixture confirms their serialized format.
   targetTags: [],
-  formatNotes: 'Pass-through for JSON; XML node layout only. Sample input/output JSON fields are pending a verified org fixture.',
+  // Sample and preview payloads are user-supplied and may be empty, plain text or
+  // partial JSON, so they are expanded only when the content is valid JSON.
+  optionalTargetTags: ['expectedInputJson', 'expectedOutputJson', 'previewJsonData'],
+  formatNotes: 'expectedInputJson, expectedOutputJson and previewJsonData are expanded only when they hold valid JSON; formula and mapping fields are untouched.',
 };

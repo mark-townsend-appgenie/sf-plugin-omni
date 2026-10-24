@@ -119,7 +119,7 @@ The Salesforce CLI's standard `--json` flag is supported. Successful runs return
 The formatter is deliberately conservative:
 
 - In default `node` mode, only whitespace between child XML elements is normalized; element text payloads are preserved. Mixed-content parents are left untouched.
-- In `all` mode, JSON is formatted only inside the approved target elements for each root (see the component map below).
+- In `all` mode, JSON is formatted only inside the approved target elements for each root (see the component map below). Required targets must hold valid JSON or the run stops, naming the file, field and line. Optional targets (sample, preview and styling payloads) are expanded only when they hold valid JSON and are otherwise left byte-for-byte unchanged.
 - New line breaks match the file's existing line ending; indentation follows `--indent` (default 4 spaces).
 - Preserves original JSON primitive tokens, including numeric spellings such as `12.0`, `0.0`, and `1e3`.
 - Preserves JSON string token text, string escapes, property order, array order, and XML entity spellings.
@@ -134,8 +134,8 @@ The formatter is deliberately conservative:
 |---|---|---|
 | `OmniScript` | `propertySetConfig`, `elementTypeComponentMapping` | Configured |
 | `OmniIntegrationProcedure` | `propertySetConfig`, `elementTypeComponentMapping` | Configured |
-| `OmniDataTransform` | None | XML layout only; sample input/output JSON pending a verified org fixture |
-| `OmniUiCard` | `propertySetConfig` | Configured; `dataSourceConfig`, `sampleDataSourceResponse` and `stylingConfiguration` pending a verified org fixture |
+| `OmniDataTransform` | Optional: `expectedInputJson`, `expectedOutputJson`, `previewJsonData` | Configured to the field reference; formula fields and `transformValuesMappings` are never touched |
+| `OmniUiCard` | Required: `propertySetConfig`, `dataSourceConfig`. Optional: `stylingConfiguration`, `sampleDataSourceResponse` | Configured to the field reference |
 | `OmniscriptDefinition`, `OmniScriptDefinition` | None | Pass-through pending verified retrieved fixtures |
 | `IntegrationProcDefinition` | None | Pass-through pending verified retrieved fixtures |
 | `FlexcardDefinition`, `FlexCardDefinition` | None | Pass-through pending verified retrieved fixtures |
@@ -147,6 +147,8 @@ The formatter is deliberately conservative:
 | `OmniTrackingGroup` | None | Pass-through |
 
 "Configured" means a target allowlist is implemented; it does not by itself certify every Salesforce API version or every metadata variant. Pass-through types are intentionally not modified. Do not add fields to an allowlist based only on a generic text/textarea field type; verify the serialized payload against a retrieved fixture first.
+
+The `OmniUiCard` and `OmniDataTransform` targets follow the Salesforce field reference for [OmniUiCard](https://developer.salesforce.com/docs/platform/field-reference/references/field-reference/salesforce-field-reference-omniuicard.html) and [OmniDataTransform](https://developer.salesforce.com/docs/platform/field-reference/references/field-reference/salesforce-field-reference-omnidatatransform.html). `test/field-reference-tests.cjs` checks the registry against those field lists and runs the formatter over schema-faithful fixtures (`test/AccountSummaryCard.ouc-meta.xml`, `test/AccountExtract.rpt-meta.xml`). The fixtures are hand-built to the documented schema, not retrieved from an org; replace them with org retrievals when available.
 
 ## Tests and verification status
 

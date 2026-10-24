@@ -11,6 +11,10 @@
 - Error messages now name the file that failed during file and directory runs.
 - Folder-scan suffixes are declared per component; `--list-types` and the README state which types a directory scan covers.
 - Remove the unused `elementTypeComponentMapping` target from `OmniUiCard`.
+- Align `OmniUiCard` and `OmniDataTransform` to the Salesforce field reference. Cards expand `propertySetConfig` and `dataSourceConfig` (required, must be valid JSON) plus `stylingConfiguration` and `sampleDataSourceResponse` (optional, expanded only when valid JSON). Data Transforms expand `expectedInputJson`, `expectedOutputJson` and `previewJsonData` (optional); formula fields and `transformValuesMappings` are untouched.
+- Add optional JSON targets: expanded when the content is valid JSON, otherwise left unchanged without stopping the run.
+- Invalid JSON errors now name the field and its line in the original file.
+- Add field-reference conformance tests and schema-faithful card and data transform fixtures.
 - Fix the `--list-types` flag, which was registered as `--listTypes`.
 - Add `.gitattributes` (`*-meta.xml text eol=lf`), run CI on Ubuntu and Windows, and add `typescript` as a dev dependency to silence the oclif development-mode warning.
 

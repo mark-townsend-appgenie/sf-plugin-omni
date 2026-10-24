@@ -101,7 +101,13 @@ function formatXmlTargets(xml, targetNames, formatJson) {
     const payload = original.slice(leading.length, original.length - trailing.length);
     if (!payload) continue;
 
-    const formatted = formatJson(payload);
+    let formatted;
+    try {
+      formatted = formatJson(payload);
+    } catch (error) {
+      const line = result.slice(0, range.start).split('\n').length;
+      throw new Error(`<${range.tagName}> at line ${line}: ${error.message}`, { cause: error });
+    }
     result = result.slice(0, range.start) + leading + formatted + trailing + result.slice(range.end);
   }
 
