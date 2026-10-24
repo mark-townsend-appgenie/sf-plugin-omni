@@ -17,18 +17,25 @@ export default class OmniFormat extends SfCommand {
   static description = `By default, reformat element-only XML structure while preserving the content of each XML node.
 Use --expand all to also pretty-print approved embedded JSON fields.
 
+XML elements are indented with 4 spaces by default, matching Salesforce retrieves. Use --indent
+to choose a space count, tab, or preserve (keep the file's existing indent unit). New line breaks
+always follow the file's existing line ending (LF or CRLF).
+
 The formatter does not minify JSON, sort properties, reorder metadata elements, deploy metadata,
 or normalise JSON values. Numeric spellings and JSON string tokens are preserved lexically.
 
 When PATH is a directory, the command recursively discovers files ending in .os-meta.xml,
-.oip-meta.xml, .ouc-meta.xml, or .rpt-meta.xml. Files are validated and formatted before any
-writes begin; each changed file is replaced atomically. Directory updates are not a single
-all-files transaction.`;
+.oip-meta.xml, .ouc-meta.xml, or .rpt-meta.xml (OmniScript, Integration Procedure, FlexCard and
+Data Transform). Other registered types are only formatted when passed as an explicit file path;
+see --list-types. Files are validated and formatted before any writes begin; malformed XML or
+embedded JSON stops the run and names the file. Each changed file is replaced atomically.
+Directory updates are not a single all-files transaction.`;
   static examples = [
     '<%= config.bin %> appgenie omni format force-app/main/default/omniScripts/MyScript.os-meta.xml',
     '<%= config.bin %> appgenie omni format force-app/main/default',
     '<%= config.bin %> appgenie omni format force-app/main/default --check',
     '<%= config.bin %> appgenie omni format force-app/main/default --expand all',
+    '<%= config.bin %> appgenie omni format force-app/main/default --indent preserve',
     'cat MyScript.os-meta.xml | <%= config.bin %> appgenie omni format',
     '<%= config.bin %> appgenie omni format --list-types',
   ];
@@ -44,7 +51,7 @@ all-files transaction.`;
       default: false,
       description: 'Check whether formatting is needed without modifying files; exit with an error if changes are required.',
     }),
-    listTypes: Flags.boolean({
+    'list-types': Flags.boolean({
       default: false,
       description: 'List registered metadata roots and approved JSON target elements.',
     }),
@@ -53,22 +60,32 @@ all-files transaction.`;
       default: 'node',
       description: 'Expansion level: node reformats XML structure only; all also pretty-prints approved embedded JSON.',
     }),
+    indent: Flags.string({
+      default: '4',
+      description: 'XML element indent: a number of spaces (1-8), tab, or preserve (keep the existing indent unit; falls back to 4 spaces).',
+      parse: async (input) => {
+        const value = input.toLowerCase();
+        if (value === 'tab' || value === 'preserve' || /^[1-8]$/.test(value)) return value;
+        throw new Error(`Invalid --indent '${input}'. Expected 1-8, tab, or preserve.`);
+      },
+    }),
   };
 
   async run() {
     const { args, flags } = await this.parse(OmniFormat);
 
-    if (flags.listTypes) {
+    if (flags['list-types']) {
       const types = components.map((component) => ({
         component: component.componentName,
         roots: component.rootNames,
         targets: component.targetTags,
         mode: component.targetTags.length > 0 ? 'format' : 'pass-through',
+        folderScanSuffixes: component.discoverySuffixes,
         notes: component.formatNotes ?? '',
       }));
       if (!flags.json) {
         for (const item of types) {
-          this.log(`${item.component}\n  roots: ${item.roots.join(', ')}\n  targets: ${item.targets.length ? item.targets.join(', ') : '(none; pass-through)'}\n  mode: ${item.mode}${item.notes ? `\n  notes: ${item.notes}` : ''}`);
+          this.log(`${item.component}\n  roots: ${item.roots.join(', ')}\n  targets: ${item.targets.length ? item.targets.join(', ') : '(none; pass-through)'}\n  folder scan: ${item.folderScanSuffixes.length ? item.folderScanSuffixes.join(', ') : 'no (format by explicit file path)'}\n  mode: ${item.mode}${item.notes ? `\n  notes: ${item.notes}` : ''}`);
         }
       }
       return { types };
@@ -77,7 +94,7 @@ all-files transaction.`;
     if (!args.path) {
       if (process.stdin.isTTY) this.error('Provide a metadata file/directory path or pipe XML through stdin.');
       const original = readStdin();
-      const { formatted, component } = formatXml(original, { expand: flags.expand });
+      const { formatted, component } = formatXml(original, { expand: flags.expand, indent: flags.indent });
       const changed = formatted !== original;
       if (flags.check && changed) this.error('Formatting is required for stdin input; no output was written because --check was specified.');
       if (flags.json) {
@@ -102,7 +119,7 @@ all-files transaction.`;
 
     // Validate and format every file first, so an invalid file cannot leave a
     // directory half-formatted merely because it appeared later in the walk.
-    const plans = planFormatting(files, { expand: flags.expand });
+    const plans = planFormatting(files, { expand: flags.expand, indent: flags.indent });
 
     const changedPlans = plans.filter((plan) => plan.changed);
     if (flags.check) {
@@ -131,6 +148,7 @@ all-files transaction.`;
       passThroughFiles: plans.filter((plan) => plan.passThrough).length,
       checkOnly: flags.check,
       expand: flags.expand,
+      indent: flags.indent,
       results: plans.map(({ path: filePath, component, changed, passThrough }) => ({
         path: filePath,
         component,

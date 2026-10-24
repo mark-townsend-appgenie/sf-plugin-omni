@@ -1,0 +1,5 @@
+# Salesforce metadata XML is normalised to LF in the repository and working tree.
+*-meta.xml text eol=lf
+
+# Test fixtures keep their exact bytes (including CRLF) so line-ending tests stay meaningful.
+test/*.xml -text

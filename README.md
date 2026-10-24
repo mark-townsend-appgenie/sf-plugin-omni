@@ -45,6 +45,17 @@ The package is configured for the `@appgenie` npm scope, but it is not published
 - `--expand node` (default): formats XML node layout only. Text inside elements is preserved; embedded JSON that is on one line stays on one line.
 - `--expand all`: formats XML node layout and pretty-prints embedded JSON in explicitly approved fields.
 
+### Indentation and line endings
+
+- `--indent 4` (default): indents XML elements with 4 spaces, matching files retrieved by `sf project retrieve`, so freshly retrieved metadata is already clean.
+- `--indent <1-8>`: use that many spaces.
+- `--indent tab`: use tabs.
+- `--indent preserve`: keep the file's existing indent unit (tab, or the smallest space indent found), falling back to 4 spaces.
+
+New line breaks always follow the line ending already used between the file's elements (LF or CRLF), so a CRLF file is never left with mixed endings. Expanded JSON in `--expand all` mode uses the same line ending. Embedded JSON is indented with 2 spaces from column 0, matching the OmniStudio designer.
+
+This repository's `.gitattributes` normalises `*-meta.xml` to LF. Consider adding the same rule (`*-meta.xml text eol=lf`) to Salesforce project repositories that run this formatter, so Windows and Linux checkouts agree.
+
 ### Format one file in place
 
 ```bash
@@ -64,10 +75,14 @@ sf appgenie omni format force-app/main/default
 
 Directory mode discovers files ending in:
 
-- `.os-meta.xml`
-- `.oip-meta.xml`
-- `.ouc-meta.xml`
-- `.rpt-meta.xml`
+- `.os-meta.xml` (OmniScript)
+- `.oip-meta.xml` (OmniIntegrationProcedure)
+- `.ouc-meta.xml` (OmniUiCard / FlexCard)
+- `.rpt-meta.xml` (OmniDataTransform)
+
+Only these 4 of the 13 registered types are picked up by a directory scan. The other 9 types (for example `OmniInteractionConfig` or `OmniStudioSettings`) are only formatted when you pass the file path explicitly; `--list-types` shows which types are folder-scanned.
+
+If any file contains malformed XML (mismatched, stray or unclosed tags) or invalid embedded JSON, the run stops before writing anything and the error message names the file.
 
 It skips symlinks and the `.git`, `node_modules`, `.sf`, and `.sfdx` directories. Every candidate file is read and validated before the command begins writing. Each file is replaced atomically; the whole directory operation is not a single transaction.
 
@@ -93,7 +108,7 @@ Formatted XML is written to stdout. Diagnostic output is handled by the CLI. Wit
 sf appgenie omni format --list-types
 ```
 
-This lists the registered XML roots, approved JSON target tags, and pass-through handlers.
+This lists the registered XML roots, approved JSON target tags, pass-through handlers, and whether each type is included in a directory scan.
 
 ### JSON output
 
@@ -104,12 +119,13 @@ The Salesforce CLI's standard `--json` flag is supported. Successful runs return
 The formatter is deliberately conservative:
 
 - In default `node` mode, only whitespace between child XML elements is normalized; element text payloads are preserved. Mixed-content parents are left untouched.
-- In `all` mode, JSON is formatted only inside `<propertySetConfig>` and `<elementTypeComponentMapping>`, and only for registered roots.
+- In `all` mode, JSON is formatted only inside the approved target elements for each root (see the component map below).
+- New line breaks match the file's existing line ending; indentation follows `--indent` (default 4 spaces).
 - Preserves original JSON primitive tokens, including numeric spellings such as `12.0`, `0.0`, and `1e3`.
 - Preserves JSON string token text, string escapes, property order, array order, and XML entity spellings.
 - Preserves text payloads in `node` mode and preserves XML structure outside approved JSON target fields in `all` mode.
 - Does not minify JSON, sort keys, reorder XML elements, normalize metadata, deploy metadata, rewrite versions, or call a Salesforce org.
-- Rejects malformed JSON in a configured target field and unknown root elements.
+- Rejects malformed XML element structure (mismatched, stray or unclosed tags, or a second root), malformed JSON in a configured target field, and unknown root elements.
 - Re-running the formatter should produce no further changes.
 
 ## Current component map
@@ -118,8 +134,8 @@ The formatter is deliberately conservative:
 |---|---|---|
 | `OmniScript` | `propertySetConfig`, `elementTypeComponentMapping` | Configured |
 | `OmniIntegrationProcedure` | `propertySetConfig`, `elementTypeComponentMapping` | Configured |
-| `OmniDataTransform` | None | Pass-through; sample input/output JSON is out of scope |
-| `OmniUiCard` | `propertySetConfig`, `elementTypeComponentMapping` | Configured for approved tags only |
+| `OmniDataTransform` | None | XML layout only; sample input/output JSON pending a verified org fixture |
+| `OmniUiCard` | `propertySetConfig` | Configured; `dataSourceConfig`, `sampleDataSourceResponse` and `stylingConfiguration` pending a verified org fixture |
 | `OmniscriptDefinition`, `OmniScriptDefinition` | None | Pass-through pending verified retrieved fixtures |
 | `IntegrationProcDefinition` | None | Pass-through pending verified retrieved fixtures |
 | `FlexcardDefinition`, `FlexCardDefinition` | None | Pass-through pending verified retrieved fixtures |
@@ -130,7 +146,7 @@ The formatter is deliberately conservative:
 | `OmniStudioSettings` | None | Pass-through |
 | `OmniTrackingGroup` | None | Pass-through |
 
-“Configured” means a target allowlist is implemented; it does not by itself certify every Salesforce API version or every metadata variant. Pass-through types are intentionally not modified. Do not add fields to an allowlist based only on a generic text/textarea field type; verify the serialized payload against a retrieved fixture first.
+"Configured" means a target allowlist is implemented; it does not by itself certify every Salesforce API version or every metadata variant. Pass-through types are intentionally not modified. Do not add fields to an allowlist based only on a generic text/textarea field type; verify the serialized payload against a retrieved fixture first.
 
 ## Tests and verification status
 
@@ -140,7 +156,7 @@ Run the offline formatter regression suite:
 npm test
 ```
 
-The suite covers lexical token preservation, nested objects/arrays, XML target discovery, CDATA/comment handling, invalid JSON rejection, unknown roots, node-only text preservation, both expansion modes, idempotence, and the supplied `Base Discovery Framework` fixture.
+The suite covers lexical token preservation, nested objects/arrays, XML target discovery, CDATA/comment handling, invalid JSON rejection, malformed XML rejection, unknown roots, node-only text preservation, both expansion modes, idempotence, CRLF and LF line endings, 4-space/2-space/tab/preserve indentation, OmniScript, Integration Procedure, Data Transform and Card samples, folder-scan coverage, file paths in error messages, and the supplied `Base Discovery Framework` fixture. CI runs the suite on both Ubuntu and Windows.
 
 Before release, also run these environment-dependent checks:
 

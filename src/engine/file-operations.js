@@ -2,14 +2,11 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { formatXml } = require('./omni-format');
+const { formatXml, components } = require('./omni-format');
 
-const DISCOVERY_SUFFIXES = [
-  '.os-meta.xml',
-  '.oip-meta.xml',
-  '.ouc-meta.xml',
-  '.rpt-meta.xml',
-];
+// Directory scanning only covers types whose file suffix is unambiguous. Other
+// registered types are formatted when passed as an explicit file path.
+const DISCOVERY_SUFFIXES = [...new Set(components.flatMap((component) => component.discoverySuffixes))].sort();
 const IGNORED_DIRECTORY_NAMES = new Set(['.git', 'node_modules', '.sf', '.sfdx']);
 
 function discoverMetadataFiles(directory) {
@@ -54,8 +51,15 @@ function writeAtomically(filePath, content) {
 
 function planFormatting(files, options = {}) {
   return files.map((filePath) => {
-    const original = fs.readFileSync(filePath, 'utf8');
-    const { formatted, component } = formatXml(original, options);
+    let original;
+    let formatted;
+    let component;
+    try {
+      original = fs.readFileSync(filePath, 'utf8');
+      ({ formatted, component } = formatXml(original, options));
+    } catch (error) {
+      throw new Error(`${filePath}: ${error.message}`, { cause: error });
+    }
     return {
       path: filePath,
       original,

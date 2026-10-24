@@ -61,6 +61,7 @@
     "access": "public"
   },
   "devDependencies": {
-    "oclif": "^5.0.0"
+    "oclif": "^5.0.0",
+    "typescript": "^7.0.2"
   }
 }

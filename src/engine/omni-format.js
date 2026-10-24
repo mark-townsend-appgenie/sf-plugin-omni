@@ -5,13 +5,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { formatJsonLexically } = require('./lib/lexical-json');
 const { formatXmlTargets, rootElementName } = require('./lib/xml-targets');
-const { formatXmlNodes } = require('./lib/xml-nodes');
+const { formatXmlNodes, detectLineEnding, resolveIndent } = require('./lib/xml-nodes');
 
 const componentDir = path.join(__dirname, 'components');
 const components = fs.readdirSync(componentDir)
   .filter((name) => name.endsWith('.js'))
   .sort()
-  .map((name) => ({ file: name, ...require(path.join(componentDir, name)) }));
+  .map((name) => ({ file: name, discoverySuffixes: [], ...require(path.join(componentDir, name)) }));
 
 function getComponent(xml) {
   const root = rootElementName(xml);
@@ -27,27 +27,41 @@ function formatXml(xml, options = {}) {
   const component = getComponent(xml);
   const expand = options.expand || 'node';
   if (!['node', 'all'].includes(expand)) throw new Error(`Unsupported expand mode '${expand}'. Expected 'node' or 'all'.`);
-  const nodeFormatted = formatXmlNodes(xml);
+  const indent = resolveIndent(options.indent, xml);
+  // New line breaks follow the file's existing line ending so CRLF files stay CRLF.
+  const eol = detectLineEnding(xml);
+  const nodeFormatted = formatXmlNodes(xml, { indent, eol });
   const formatted = expand === 'all'
-    ? formatXmlTargets(nodeFormatted, component.targetTags, formatJsonLexically)
+    ? formatXmlTargets(nodeFormatted, component.targetTags, (payload) => formatJsonLexically(payload, undefined, eol))
     : nodeFormatted;
   return { formatted, component, expand };
 }
 
 function usage() {
   console.log(
-    'Usage: node omni-format.js [--expand node|all] <file.xml>\n' +
-    '       cat file.xml | node omni-format.js [--expand node|all]\n' +
+    'Usage: node omni-format.js [--expand node|all] [--indent 4|2|tab|preserve] <file.xml>\n' +
+    '       cat file.xml | node omni-format.js [--expand node|all] [--indent 4|2|tab|preserve]\n' +
     '       node omni-format.js --list-types\n\n' +
     'Default mode reformats element-only XML structure while preserving text payloads.\n' +
-    '--expand all also pretty-prints approved embedded JSON fields.'
+    '--expand all also pretty-prints approved embedded JSON fields.\n' +
+    '--indent sets the XML element indent (default 4 spaces, matching Salesforce retrieves).'
   );
 }
 
 function listTypes() {
   for (const component of components) {
-    console.log(`${component.componentName}\n  roots: ${component.rootNames.join(', ')}\n  targets: ${component.targetTags.length ? component.targetTags.join(', ') : '(pass-through; no approved targets)'}\n  file: src/components/${component.file}`);
+    const targets = component.targetTags.length ? component.targetTags.join(', ') : '(pass-through; no approved targets)';
+    const scan = component.discoverySuffixes.length ? component.discoverySuffixes.join(', ') : 'no (format by explicit file path)';
+    console.log(`${component.componentName}\n  roots: ${component.rootNames.join(', ')}\n  targets: ${targets}\n  folder scan: ${scan}\n  file: src/engine/components/${component.file}`);
   }
+}
+
+function takeOption(args, name) {
+  const index = args.indexOf(name);
+  if (index < 0) return undefined;
+  const value = args[index + 1];
+  args.splice(index, 2);
+  return value;
 }
 
 function main() {
@@ -55,17 +69,13 @@ function main() {
   if (args.includes('--help') || args.includes('-h')) return usage();
   if (args.includes('--list-types')) return listTypes();
 
-  let expand = 'node';
-  const expandIndex = args.indexOf('--expand');
-  if (expandIndex >= 0) {
-    expand = args[expandIndex + 1];
-    if (!['node', 'all'].includes(expand)) {
-      console.error('Error: --expand must be either node or all.');
-      process.exitCode = 1;
-      return;
-    }
-    args.splice(expandIndex, 2);
+  const expand = takeOption(args, '--expand') ?? 'node';
+  if (!['node', 'all'].includes(expand)) {
+    console.error('Error: --expand must be either node or all.');
+    process.exitCode = 1;
+    return;
   }
+  const indent = takeOption(args, '--indent');
   const files = args.filter((arg) => !arg.startsWith('-'));
   if (files.length > 1) {
     console.error('Error: provide one input file at a time.');
@@ -79,7 +89,7 @@ function main() {
     process.stdin.on('data', (chunk) => { input += chunk; });
     process.stdin.on('end', () => {
       try {
-        const { formatted, component } = formatXml(input, { expand });
+        const { formatted, component } = formatXml(input, { expand, indent });
         process.stdout.write(formatted);
         if (component.targetTags.length === 0) {
           console.error(`Note: ${component.componentName} is currently configured as pass-through.`);
@@ -93,10 +103,15 @@ function main() {
   }
 
   const inputPath = path.resolve(files[0]);
-  let original;
   try {
-    original = fs.readFileSync(inputPath, 'utf8');
-    const { formatted, component } = formatXml(original, { expand });
+    const original = fs.readFileSync(inputPath, 'utf8');
+    let formatted;
+    let component;
+    try {
+      ({ formatted, component } = formatXml(original, { expand, indent }));
+    } catch (error) {
+      throw new Error(`${inputPath}: ${error.message}`);
+    }
     if (formatted === original) {
       console.error(`No changes: ${component.componentName}`);
       return;
