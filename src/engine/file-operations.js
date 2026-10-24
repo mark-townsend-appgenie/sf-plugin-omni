@@ -52,10 +52,10 @@ function writeAtomically(filePath, content) {
   }
 }
 
-function planFormatting(files) {
+function planFormatting(files, options = {}) {
   return files.map((filePath) => {
     const original = fs.readFileSync(filePath, 'utf8');
-    const { formatted, component } = formatXml(original);
+    const { formatted, component } = formatXml(original, options);
     return {
       path: filePath,
       original,

@@ -4,7 +4,7 @@
 **Command:** `sf appgenie omni format`  
 **Status:** Initial plugin implementation; engine regression tests pass. Salesforce CLI runtime and org round-trip tests remain to be run in an environment with dependencies and a test org.
 
-This plugin exposes the AppGenie OmniStudio metadata formatter through the Salesforce Unified CLI (`sf`). It formats approved embedded JSON fields while preserving XML outside those fields.
+This plugin exposes the AppGenie OmniStudio metadata formatter through the Salesforce Unified CLI (`sf`). By default, it reformats element-only XML structure while preserving node text content. Use `--expand all` to also pretty-print approved embedded JSON fields.
 
 ## Requirements
 
@@ -12,50 +12,22 @@ This plugin exposes the AppGenie OmniStudio metadata formatter through the Sales
 - Node.js 22 or later, matching the current Salesforce CLI runtime line.
 - npm or Yarn to install dependencies.
 
-## Install from GitHub for evaluation
+## Install for local development
 
-The plugin is currently distributed as source from the GitHub repository; it has **not** been published to npm. You need Git access to the repository, Node.js 22 or later, npm, and the Salesforce CLI (`sf`). If the repository is private, GitHub must authenticate your account and grant you access before cloning.
-
-From a terminal, clone the repository and install its dependencies:
+From this package directory:
 
 ```bash
-git clone https://github.com/mark-townsend-appgenie/sf-plugin-omni.git
-cd sf-plugin-omni
-npm ci
+npm install
 npm test
 npm run manifest
 sf plugins link .
-```
-
-Confirm that Salesforce CLI can discover the command:
-
-```bash
 sf appgenie omni format --help
-sf appgenie omni format --list-types
 ```
 
-`npm ci` uses the committed `package-lock.json` to install the locked dependency tree. If the lock file has not yet been committed to the repository, use `npm install` temporarily instead; commit the generated lock file before relying on clean external builds.
-
-### Uninstall the linked development plugin
-
-When you have finished evaluating it, run:
+To unlink it after testing:
 
 ```bash
 sf plugins unlink @appgenie/sf-plugin-omni
-```
-
-Unlinking removes the local plugin registration from Salesforce CLI; it does not delete the repository or its files.
-
-## Install for local development
-
-If you already have a checkout, run these commands from the repository directory:
-
-```bash
-npm ci
-npm test
-npm run manifest
-sf plugins link .
-sf appgenie omni format --help
 ```
 
 For a direct local run without linking:
@@ -64,14 +36,22 @@ For a direct local run without linking:
 npm run dev -- appgenie omni format --help
 ```
 
-The package is configured for the `@appgenie` npm scope, but it is not published to npm. Until an approved package release is published, use the source-install instructions above rather than `sf plugins install @appgenie/sf-plugin-omni`.
+The package is configured for the `@appgenie` npm scope, but it is not published by this project build. Publishing requires the AppGenie npm scope to be owned/configured and release approval.
 
 ## Command usage
+
+### Expansion modes
+
+- `--expand node` (default): formats XML node layout only. Text inside elements is preserved; embedded JSON that is on one line stays on one line.
+- `--expand all`: formats XML node layout and pretty-prints embedded JSON in explicitly approved fields.
 
 ### Format one file in place
 
 ```bash
 sf appgenie omni format force-app/main/default/omniScripts/MyScript.os-meta.xml
+
+# Also expand approved embedded JSON fields
+sf appgenie omni format force-app/main/default/omniScripts/MyScript.os-meta.xml --expand all
 ```
 
 The command validates and formats the file, then replaces it atomically only if it changed. File permissions are retained.
@@ -123,10 +103,11 @@ The Salesforce CLI's standard `--json` flag is supported. Successful runs return
 
 The formatter is deliberately conservative:
 
-- Formats JSON only inside `<propertySetConfig>` and `<elementTypeComponentMapping>`, and only for registered roots.
+- In default `node` mode, only whitespace between child XML elements is normalized; element text payloads are preserved. Mixed-content parents are left untouched.
+- In `all` mode, JSON is formatted only inside `<propertySetConfig>` and `<elementTypeComponentMapping>`, and only for registered roots.
 - Preserves original JSON primitive tokens, including numeric spellings such as `12.0`, `0.0`, and `1e3`.
 - Preserves JSON string token text, string escapes, property order, array order, and XML entity spellings.
-- Leaves XML content outside target elements unchanged as UTF-8 text.
+- Preserves text payloads in `node` mode and preserves XML structure outside approved JSON target fields in `all` mode.
 - Does not minify JSON, sort keys, reorder XML elements, normalize metadata, deploy metadata, rewrite versions, or call a Salesforce org.
 - Rejects malformed JSON in a configured target field and unknown root elements.
 - Re-running the formatter should produce no further changes.
@@ -159,7 +140,7 @@ Run the offline formatter regression suite:
 npm test
 ```
 
-The suite covers lexical token preservation, nested objects/arrays, XML target discovery, CDATA/comment handling, invalid JSON rejection, unknown roots, idempotence, pass-through behavior, and the supplied `Base Discovery Framework` fixture.
+The suite covers lexical token preservation, nested objects/arrays, XML target discovery, CDATA/comment handling, invalid JSON rejection, unknown roots, node-only text preservation, both expansion modes, idempotence, and the supplied `Base Discovery Framework` fixture.
 
 Before release, also run these environment-dependent checks:
 

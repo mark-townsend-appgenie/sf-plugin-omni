@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { formatJsonLexically } = require('./lib/lexical-json');
 const { formatXmlTargets, rootElementName } = require('./lib/xml-targets');
+const { formatXmlNodes } = require('./lib/xml-nodes');
 
 const componentDir = path.join(__dirname, 'components');
 const components = fs.readdirSync(componentDir)
@@ -22,19 +23,24 @@ function getComponent(xml) {
   return component;
 }
 
-function formatXml(xml) {
+function formatXml(xml, options = {}) {
   const component = getComponent(xml);
-  const formatted = formatXmlTargets(xml, component.targetTags, formatJsonLexically);
-  return { formatted, component };
+  const expand = options.expand || 'node';
+  if (!['node', 'all'].includes(expand)) throw new Error(`Unsupported expand mode '${expand}'. Expected 'node' or 'all'.`);
+  const nodeFormatted = formatXmlNodes(xml);
+  const formatted = expand === 'all'
+    ? formatXmlTargets(nodeFormatted, component.targetTags, formatJsonLexically)
+    : nodeFormatted;
+  return { formatted, component, expand };
 }
 
 function usage() {
   console.log(
-    'Usage: node omni-format.js <file.xml>\n' +
-    '       cat file.xml | node omni-format.js\n' +
+    'Usage: node omni-format.js [--expand node|all] <file.xml>\n' +
+    '       cat file.xml | node omni-format.js [--expand node|all]\n' +
     '       node omni-format.js --list-types\n\n' +
-    'Formats approved embedded JSON fields only. JSON tokens and XML outside\n' +
-    'target fields are preserved; unsupported XML roots are rejected.'
+    'Default mode reformats element-only XML structure while preserving text payloads.\n' +
+    '--expand all also pretty-prints approved embedded JSON fields.'
   );
 }
 
@@ -49,6 +55,17 @@ function main() {
   if (args.includes('--help') || args.includes('-h')) return usage();
   if (args.includes('--list-types')) return listTypes();
 
+  let expand = 'node';
+  const expandIndex = args.indexOf('--expand');
+  if (expandIndex >= 0) {
+    expand = args[expandIndex + 1];
+    if (!['node', 'all'].includes(expand)) {
+      console.error('Error: --expand must be either node or all.');
+      process.exitCode = 1;
+      return;
+    }
+    args.splice(expandIndex, 2);
+  }
   const files = args.filter((arg) => !arg.startsWith('-'));
   if (files.length > 1) {
     console.error('Error: provide one input file at a time.');
@@ -62,7 +79,7 @@ function main() {
     process.stdin.on('data', (chunk) => { input += chunk; });
     process.stdin.on('end', () => {
       try {
-        const { formatted, component } = formatXml(input);
+        const { formatted, component } = formatXml(input, { expand });
         process.stdout.write(formatted);
         if (component.targetTags.length === 0) {
           console.error(`Note: ${component.componentName} is currently configured as pass-through.`);
@@ -79,7 +96,7 @@ function main() {
   let original;
   try {
     original = fs.readFileSync(inputPath, 'utf8');
-    const { formatted, component } = formatXml(original);
+    const { formatted, component } = formatXml(original, { expand });
     if (formatted === original) {
       console.error(`No changes: ${component.componentName}`);
       return;

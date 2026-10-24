@@ -14,7 +14,8 @@ function readStdin() {
 
 export default class OmniFormat extends SfCommand {
   static summary = 'Format embedded JSON in supported OmniStudio metadata XML.';
-  static description = `Pretty-print approved embedded JSON fields while preserving XML outside those fields.
+  static description = `By default, reformat element-only XML structure while preserving the content of each XML node.
+Use --expand all to also pretty-print approved embedded JSON fields.
 
 The formatter does not minify JSON, sort properties, reorder metadata elements, deploy metadata,
 or normalise JSON values. Numeric spellings and JSON string tokens are preserved lexically.
@@ -27,6 +28,7 @@ all-files transaction.`;
     '<%= config.bin %> appgenie omni format force-app/main/default/omniScripts/MyScript.os-meta.xml',
     '<%= config.bin %> appgenie omni format force-app/main/default',
     '<%= config.bin %> appgenie omni format force-app/main/default --check',
+    '<%= config.bin %> appgenie omni format force-app/main/default --expand all',
     'cat MyScript.os-meta.xml | <%= config.bin %> appgenie omni format',
     '<%= config.bin %> appgenie omni format --list-types',
   ];
@@ -45,6 +47,11 @@ all-files transaction.`;
     listTypes: Flags.boolean({
       default: false,
       description: 'List registered metadata roots and approved JSON target elements.',
+    }),
+    expand: Flags.string({
+      options: ['node', 'all'],
+      default: 'node',
+      description: 'Expansion level: node reformats XML structure only; all also pretty-prints approved embedded JSON.',
     }),
   };
 
@@ -70,7 +77,7 @@ all-files transaction.`;
     if (!args.path) {
       if (process.stdin.isTTY) this.error('Provide a metadata file/directory path or pipe XML through stdin.');
       const original = readStdin();
-      const { formatted, component } = formatXml(original);
+      const { formatted, component } = formatXml(original, { expand: flags.expand });
       const changed = formatted !== original;
       if (flags.check && changed) this.error('Formatting is required for stdin input; no output was written because --check was specified.');
       if (flags.json) {
@@ -95,7 +102,7 @@ all-files transaction.`;
 
     // Validate and format every file first, so an invalid file cannot leave a
     // directory half-formatted merely because it appeared later in the walk.
-    const plans = planFormatting(files);
+    const plans = planFormatting(files, { expand: flags.expand });
 
     const changedPlans = plans.filter((plan) => plan.changed);
     if (flags.check) {
@@ -123,6 +130,7 @@ all-files transaction.`;
       filesUnchanged: plans.length - changedPlans.length,
       passThroughFiles: plans.filter((plan) => plan.passThrough).length,
       checkOnly: flags.check,
+      expand: flags.expand,
       results: plans.map(({ path: filePath, component, changed, passThrough }) => ({
         path: filePath,
         component,
